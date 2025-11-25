@@ -126,7 +126,7 @@ with st.sidebar:
 st.markdown(
     """
 <div style="text-align: center; margin-top: 25px; margin-bottom: 0px;">
-<img src="https://github.com/laisdallemulle/ILR_optimization2/blob/3cb43aa3f3925cbdd52097a6e042f46a8bcf1976/rrc2.png" width="110">
+<img src="rrc.jpg" width="110">
 <p style="color:#bbbbbb; font-size:14px; margin-top:10px;">
     Created by Laís de Oliveira Dalle Mulle – PV Engineer
 </p>
