@@ -157,7 +157,7 @@ st.markdown(
     f"""
     <div class="logo-container">
         <img src="data:image/png;base64,{logo_b64}" class="logo-img">
-        <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
+        <p style="color:#bbbbbb; font-size:13px; margin-top:6px; margin-bottom: inherit;">
             Created by Laís de Oliveira Dalle Mulle – PV Engineer
         </p>
          <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
