@@ -121,31 +121,24 @@ with st.sidebar:
     run_button = st.button("Run Distribution")
 
 # ============================================================
-#  HEADER WITH HTML-CENTERED LOGO
+#  HEADER WITH HTML-CENTERED LOGO (NO INDENT INSIDE STRING)
 # ============================================================
-
 st.markdown(
     """
-    <div style="text-align: center; margin-top: 25px; margin-bottom: 0px;">
-
-        <!-- Local logo rrc.png -->
-        <img src="rrc.png" width="110">
-
-        <p style="color:#bbbbbb; font-size:14px; margin-top:10px;">
-            Created by Laís de Oliveira Dalle Mulle – PV Engineer
-        </p>
-
-        <h1 style="color:white; font-weight:700; margin-bottom:0;">
-            Inverter Loading Ratio Calculation
-        </h1>
-
-        <p style="color:#cccccc; font-size:16px; margin-top:6px;">
-            This application distributes DC strings across inverters using a greedy algorithm
-            to evaluate DC power balance and ILR performance.
-        </p>
-
-    </div>
-    """,
+<div style="text-align: center; margin-top: 25px; margin-bottom: 0px;">
+<img src="rrc.png" width="110">
+<p style="color:#bbbbbb; font-size:14px; margin-top:10px;">
+    Created by Laís de Oliveira Dalle Mulle – PV Engineer
+</p>
+<h1 style="color:white; font-weight:700; margin-bottom:0;">
+    Inverter Loading Ratio Calculation
+</h1>
+<p style="color:#cccccc; font-size:16px; margin-top:6px;">
+    This application distributes DC strings across inverters using a greedy algorithm
+    to evaluate DC power balance and ILR performance.
+</p>
+</div>
+""",
     unsafe_allow_html=True
 )
 
@@ -256,5 +249,3 @@ if run_button:
 
     except Exception as e:
         st.error(f"Error: {e}")
-
-st.markdown("</div>", unsafe_allow_html=True)
