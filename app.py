@@ -123,34 +123,44 @@ with st.sidebar:
 # ============================================================
 #  FULLY CENTERED HEADER AREA (LIKE SCAN SITE ANALYZER)
 # ============================================================
-st.markdown("<div class='main-block'>", unsafe_allow_html=True)
+# Create three columns: left - center - right
+left, center, right = st.columns([1, 3, 1])
 
-# Begin centered container
-st.markdown("<div style='text-align: center; margin-top: 20px;'>", unsafe_allow_html=True)
+with center:
+    
+    # Logo
+    st.image("rrc.png", width=110)
 
-# Centered RRC logo
-st.image("rrc.png", width=110)
+    # Author
+    st.markdown(
+        """
+        <p style="color:#bbbbbb; font-size:14px; text-align:center; margin-top:8px;">
+            Created by Laís de Oliveira Dalle Mulle – PV Engineer
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
-# Centered header text
-st.markdown(
-    """
-    <p style="color:#bbbbbb; font-size:14px; margin-top:8px;">
-        Created by Laís de Oliveira Dalle Mulle – PV Engineer
-    </p>
+    # Title
+    st.markdown(
+        """
+        <h1 style="color:white; text-align:center; font-weight:700; margin-bottom:0;">
+            Inverter Loading Ratio Calculation
+        </h1>
+        """,
+        unsafe_allow_html=True
+    )
 
-    <h1 style="color:white; font-weight:700; margin-bottom: 0;">
-        Inverter Loading Ratio Calculation
-    </h1>
-
-    <p style="color:#cccccc; font-size:16px; margin-top:6px; max-width: 800px; margin-left:auto; margin-right:auto;">
-        This application distributes DC strings across inverters using a greedy loading algorithm
-        to evaluate DC power balance and Inverter Loading Ratio (ILR) performance.
-    </p>
-    """,
-    unsafe_allow_html=True
-)
-
-st.markdown("</div>", unsafe_allow_html=True)
+    # Subtitle
+    st.markdown(
+        """
+        <p style="color:#cccccc; font-size:16px; text-align:center; margin-top:6px;">
+            This application distributes DC strings across inverters using a greedy algorithm
+            to evaluate DC power balance and ILR performance.
+        </p>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ============================================================
 #  ABOUT SECTION
