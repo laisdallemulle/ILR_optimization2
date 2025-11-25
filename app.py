@@ -163,7 +163,7 @@ st.markdown(
          <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
             LaisDalleMulle@RRCcompanies.com
         </p>
-        <h1 style="color:white; margin-bottom:0;">String Distribution Analyzer</h1>
+        <h1 style="color:white; margin-bottom:0;">Inverter Loading Ratio Calculation</h1>
         <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
             Greedy allocation of DC strings to balance inverter ILR
         </p>
