@@ -124,20 +124,19 @@ with st.sidebar:
 #  FULLY CENTERED HEADER AREA (LIKE SCAN SITE ANALYZER)
 # ============================================================
 
-# Create center column layout
-col1, col2, col3 = st.columns([1, 2, 1])
+ol1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
 
-    # LOGO centered above everything
+    # LOGO - same column as the author text
     st.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
     st.image("rrc.png", width=110)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # AUTHOR TEXT (stays exactly where it was visually)
+    # AUTHOR TEXT - same alignment as the logo now
     st.markdown(
         """
-        <p style="color:#bbbbbb; font-size:14px; text-align:center; margin-top:10px; margin-bottom:0px;">
+        <p style="color:#bbbbbb; font-size:14px; text-align:center; margin-top:10px;">
             Created by Laís de Oliveira Dalle Mulle – PV Engineer
         </p>
         """,
@@ -147,7 +146,7 @@ with col2:
     # TITLE
     st.markdown(
         """
-        <h1 style="color:white; text-align:center; font-weight:700; margin-top:5px; margin-bottom:0;">
+        <h1 style="color:white; text-align:center; font-weight:700; margin-bottom:0;">
             Inverter Loading Ratio Calculation
         </h1>
         """,
