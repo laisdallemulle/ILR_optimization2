@@ -18,7 +18,6 @@ custom_css = """
 body {
     background-color: #0e1117;
     color: #f5f5f5;
-    align:center;
 }
 .main-block {
     max-width: 1200px;
@@ -125,7 +124,7 @@ with st.sidebar:
 #  FULLY CENTERED HEADER AREA (LIKE SCAN SITE ANALYZER)
 # ============================================================
 
-ol1, col2, col3 = st.columns([1, 2, 1])
+col1, col2, col3 = st.columns([1, 2, 1])
 
 with col2:
 
