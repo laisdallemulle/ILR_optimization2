@@ -18,6 +18,7 @@ custom_css = """
 body {
     background-color: #0e1117;
     color: #f5f5f5;
+    align:center;
 }
 .main-block {
     max-width: 1200px;
