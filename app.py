@@ -19,15 +19,6 @@ body {
     background-color: #0e1117;
     color: #f5f5f5;
 }
-.header-center {
-    text-align: center;
-    margin-top: 20px;
-}
-.header-center img {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-}
 .main-block {
     max-width: 1200px;
     margin: 0 auto;
@@ -65,6 +56,19 @@ body {
 .dataframe td, .dataframe th {
     color: #f5f5f5 !important;
     background-color: #161a23 !important;
+}
+
+/* CENTRALIZAR HEADER */
+.header-center {
+    text-align: center;
+    margin-top: 20px;
+}
+
+/* Centralizar a imagem criada pelo st.image */
+.header-center .stImage img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 </style>
 """
@@ -138,14 +142,13 @@ with st.sidebar:
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
-st.markdown("<div style='text-align: center; margin-top: 20px;'>", unsafe_allow_html=True)
+st.markdown("<div class='header-center'>", unsafe_allow_html=True)
 
-# Load local logo (rrc.png in same folder)
+# usa st.image para carregar o arquivo local
 st.image("rrc.png", width=90)
 
-st.markdown("""
-<div class="header-center">
-    <img src="rrc.png" width="90">
+st.markdown(
+    """
     <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
         Created by Laís de Oliveira Dalle Mulle – PV Engineer
     </p>
@@ -153,8 +156,9 @@ st.markdown("""
     <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
         Greedy allocation of DC strings to balance inverter ILR
     </p>
-</div>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True
+)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
