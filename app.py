@@ -123,44 +123,29 @@ with st.sidebar:
 # ============================================================
 #  FULLY CENTERED HEADER AREA (LIKE SCAN SITE ANALYZER)
 # ============================================================
-# Create three columns: left - center - right
-left, center, right = st.columns([1, 3, 1])
-
-with center:
-    
-    # Logo
+# First: center the logo using columns
+col1, col2, col3 = st.columns([1, 1, 1])
+with col2:
     st.image("rrc.png", width=110)
 
-    # Author
-    st.markdown(
-        """
-        <p style="color:#bbbbbb; font-size:14px; text-align:center; margin-top:8px;">
-            Created by Laís de Oliveira Dalle Mulle – PV Engineer
-        </p>
-        """,
-        unsafe_allow_html=True
-    )
+# Second: center all the text using markdown
+st.markdown(
+    """
+    <p style="color:#bbbbbb; font-size:14px; text-align:center; margin-top:8px;">
+        Created by Laís de Oliveira Dalle Mulle – PV Engineer
+    </p>
 
-    # Title
-    st.markdown(
-        """
-        <h1 style="color:white; text-align:center; font-weight:700; margin-bottom:0;">
-            Inverter Loading Ratio Calculation
-        </h1>
-        """,
-        unsafe_allow_html=True
-    )
+    <h1 style="color:white; text-align:center; font-weight:700; margin-bottom:0;">
+        Inverter Loading Ratio Calculation
+    </h1>
 
-    # Subtitle
-    st.markdown(
-        """
-        <p style="color:#cccccc; font-size:16px; text-align:center; margin-top:6px;">
-            This application distributes DC strings across inverters using a greedy algorithm
-            to evaluate DC power balance and ILR performance.
-        </p>
-        """,
-        unsafe_allow_html=True
-    )
+    <p style="color:#cccccc; font-size:16px; text-align:center; margin-top:6px;">
+        This application distributes DC strings across inverters using a greedy algorithm
+        to evaluate DC power balance and ILR performance.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
 # ============================================================
 #  ABOUT SECTION
