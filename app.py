@@ -7,8 +7,7 @@ import pandas as pd
 st.set_page_config(
     page_title="Inverter Loading Ratio Calculation",
     page_icon="🔌",
-    layout="wide",
-    align="center"
+    layout="wide"
 )
 
 # ============================================================
