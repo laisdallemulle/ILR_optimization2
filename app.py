@@ -143,8 +143,9 @@ st.markdown("<div style='text-align: center; margin-top: 20px;'>", unsafe_allow_
 # Load local logo (rrc.png in same folder)
 st.image("rrc.png", width=90)
 
-st.markdown(
-    """
+st.markdown("""
+<div class="header-center">
+    <img src="rrc.png" width="90">
     <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
         Created by Laís de Oliveira Dalle Mulle – PV Engineer
     </p>
@@ -152,9 +153,8 @@ st.markdown(
     <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
         Greedy allocation of DC strings to balance inverter ILR
     </p>
-    """,
-    unsafe_allow_html=True
-)
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("</div>", unsafe_allow_html=True)
 
