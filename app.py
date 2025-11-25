@@ -160,7 +160,7 @@ st.markdown(
         <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
             Created by Laís de Oliveira Dalle Mulle – PV Engineer
         </p>
-         <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
+         <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
             LaisDalleMulle@RRCcompanies.com
         </p>
         <h1 style="color:white; margin-bottom:0;">String Distribution Analyzer</h1>
