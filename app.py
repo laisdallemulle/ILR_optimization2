@@ -75,7 +75,7 @@ body {
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ============================================================
-#  FUNÇÃO PARA CARREGAR IMAGEM EM BASE64
+#  FUNCTION TO LOAD THE IMAGE WITH BASE64
 # ============================================================
 def load_image_base64(path):
     with open(path, "rb") as f:
@@ -146,7 +146,7 @@ with st.sidebar:
     run_button = st.button("Run Distribution")
 
 # ============================================================
-#  HEADER AREA (WITH LOCAL LOGO)
+#  HEADER AREA
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
