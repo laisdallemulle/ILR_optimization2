@@ -256,7 +256,7 @@ if run_button:
                 )
 
         # Table and charts
-        col_table, col_plot1 = st.columns([0.5,0.7])
+        col_table, col_plot1 = st.columns([0.5,0.5])
 
         with col_table:
             st.markdown("<div class='card'><h3>Summary Table</h3></div>", unsafe_allow_html=True)
