@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 # ============================================================
-#  CUSTOM CSS (dark dashboard look)
+#  CUSTOM CSS (dark dashboard styling)
 # ============================================================
 custom_css = """
 <style>
@@ -62,13 +62,13 @@ body {
 st.markdown(custom_css, unsafe_allow_html=True)
 
 # ============================================================
-#  CORE ALGORITHM
+#  CORE ALGORITHM – GREEDY STRING DISTRIBUTION
 # ============================================================
 def distribute_str_qty_greedy(str_qty, num_inverters):
     """
     Greedy distribution of string quantities into a given number of inverters.
     The algorithm assigns the next highest string value to the inverter
-    with the lowest current sum, balancing the load.
+    with the lowest current total, balancing loading as much as possible.
     """
     str_qty_sorted = sorted(str_qty, reverse=True)
     lines = [[] for _ in range(num_inverters)]
@@ -96,28 +96,24 @@ with st.sidebar:
     num_inverters = st.number_input(
         "Number of inverters",
         min_value=1,
-        step=1,
         value=4
     )
 
     power_inverter = st.number_input(
         "Inverter AC power (kVA)",
         min_value=0.0,
-        step=10.0,
         value=1100.0
     )
 
     str_moduleqty = st.number_input(
         "Modules per string",
         min_value=1,
-        step=1,
         value=27
     )
 
     pot_module = st.number_input(
         "Module power (W)",
         min_value=1.0,
-        step=5.0,
         value=625.0
     )
 
@@ -125,23 +121,30 @@ with st.sidebar:
     run_button = st.button("Run Distribution")
 
 # ============================================================
-#  HEADER AREA (WITH LOCAL LOGO)
+#  FULLY CENTERED HEADER AREA (LIKE SCAN SITE ANALYZER)
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
+# Begin centered container
 st.markdown("<div style='text-align: center; margin-top: 20px;'>", unsafe_allow_html=True)
 
-# Load local logo (rrc.png in same folder)
-st.image("rrc.png", width=90)
+# Centered RRC logo
+st.image("rrc.png", width=110)
 
+# Centered header text
 st.markdown(
     """
-    <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
+    <p style="color:#bbbbbb; font-size:14px; margin-top:8px;">
         Created by Laís de Oliveira Dalle Mulle – PV Engineer
     </p>
-    <h1 style="color:white; margin-bottom:0;">Inverter Loading Ratio Calculation</h1>
-    <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
-        Greedy allocation of DC strings to balance inverter ILR
+
+    <h1 style="color:white; font-weight:700; margin-bottom: 0;">
+        Inverter Loading Ratio Calculation
+    </h1>
+
+    <p style="color:#cccccc; font-size:16px; margin-top:6px; max-width: 800px; margin-left:auto; margin-right:auto;">
+        This application distributes DC strings across inverters using a greedy loading algorithm
+        to evaluate DC power balance and Inverter Loading Ratio (ILR) performance.
     </p>
     """,
     unsafe_allow_html=True
@@ -157,16 +160,18 @@ st.markdown(
 <div class="card">
     <h3>About This Application</h3>
     <p>
-        This tool distributes DC strings across inverters using a greedy algorithm.
-        The goal is to balance total strings, DC power, and ILR across all inverters.
+        This tool helps engineers quickly evaluate DC string loading across multiple inverters.
+        The greedy algorithm ensures string distribution is as balanced as possible, minimizing
+        ILR variation between inverter units.
     </p>
-    <b>Outputs:</b>
+    <b>Outputs include:</b>
     <ul>
-        <li>Strings assigned to each inverter</li>
-        <li>DC power per inverter (kW)</li>
-        <li>ILR for each inverter</li>
+        <li>Strings assigned per inverter</li>
+        <li>Total strings count</li>
+        <li>Estimated DC power (kW)</li>
+        <li>ILR per inverter</li>
         <li>ILR statistics: mean, min, max, std deviation</li>
-        <li>Summary table and charts</li>
+        <li>Plots and summary tables</li>
     </ul>
 </div>
 """,
@@ -174,15 +179,14 @@ st.markdown(
 )
 
 # ============================================================
-#  RESULTS
+#  RESULTS CALCULATION
 # ============================================================
 if run_button:
     try:
         str_qty = [int(x.strip()) for x in str_input.split(",") if x.strip()]
-
         distributed_lines, line_sums = distribute_str_qty_greedy(str_qty, num_inverters)
 
-        # Build summary DataFrame
+        # Summary dataframe
         data = []
         for i, total_strings in enumerate(line_sums):
             dc_power_kw = total_strings * str_moduleqty * (pot_module / 1000.0)
@@ -196,12 +200,13 @@ if run_button:
 
         df_summary = pd.DataFrame(data)
 
-        # ILR statistics
+        # ILR stats
         ilr_mean = df_summary["ILR"].mean()
         ilr_min = df_summary["ILR"].min()
         ilr_max = df_summary["ILR"].max()
         ilr_std = df_summary["ILR"].std()
 
+        # ILR Stats Card
         st.markdown(
             f"""
             <div class="card">
