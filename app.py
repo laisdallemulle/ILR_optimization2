@@ -266,7 +266,7 @@ if run_button:
             st.markdown("<div class='card'><h3>Strings per Inverter</h3></div>", unsafe_allow_html=True)
             st.bar_chart(df_summary.set_index("Inverter")["Total Strings"])
 
-        col_plot2, _ = st.columns([1, 1])
+        col_plot2, _ = st.columns([1, 0])
 
         with col_plot2:
             st.markdown("<div class='card'><h3>ILR per Inverter</h3></div>", unsafe_allow_html=True)
