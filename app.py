@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import base64  # <<< NOVO
 
 # ============================================================
 #  PAGE CONFIGURATION
@@ -58,14 +59,13 @@ body {
     background-color: #161a23 !important;
 }
 
-/* CENTRALIZAR HEADER */
-.header-center {
+/* LOGO E TÍTULO CENTRALIZADOS */
+.logo-container {
     text-align: center;
     margin-top: 20px;
 }
-
-/* Centralizar a imagem criada pelo st.image */
-.header-center .stImage img {
+.logo-img {
+    width: 90px;
     display: block;
     margin-left: auto;
     margin-right: auto;
@@ -73,6 +73,14 @@ body {
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
+
+# ============================================================
+#  FUNÇÃO PARA CARREGAR IMAGEM EM BASE64
+# ============================================================
+def load_image_base64(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
 
 # ============================================================
 #  CORE ALGORITHM
@@ -142,25 +150,24 @@ with st.sidebar:
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
-st.markdown("<div class='header-center'>", unsafe_allow_html=True)
-
-# usa st.image para carregar o arquivo local
-st.image("rrc.png", width=90)
+# carrega o logo local em base64
+logo_b64 = load_image_base64("rrc.png")
 
 st.markdown(
-    """
-    <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
-        Created by Laís de Oliveira Dalle Mulle – PV Engineer
-    </p>
-    <h1 style="color:white; margin-bottom:0;">String Distribution Analyzer</h1>
-    <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
-        Greedy allocation of DC strings to balance inverter ILR
-    </p>
+    f"""
+    <div class="logo-container">
+        <img src="data:image/png;base64,{logo_b64}" class="logo-img">
+        <p style="color:#bbbbbb; font-size:13px; margin-top:6px;">
+            Created by Laís de Oliveira Dalle Mulle – PV Engineer
+        </p>
+        <h1 style="color:white; margin-bottom:0;">String Distribution Analyzer</h1>
+        <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
+            Greedy allocation of DC strings to balance inverter ILR
+        </p>
+    </div>
     """,
     unsafe_allow_html=True
 )
-
-st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 #  ABOUT SECTION
