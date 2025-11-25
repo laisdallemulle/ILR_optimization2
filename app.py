@@ -19,6 +19,15 @@ body {
     background-color: #0e1117;
     color: #f5f5f5;
 }
+.header-center {
+    text-align: center;
+    margin-top: 20px;
+}
+.header-center img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
 .main-block {
     max-width: 1200px;
     margin: 0 auto;
