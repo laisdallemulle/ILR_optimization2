@@ -89,6 +89,7 @@ body {
 """
 
 st.markdown(custom_css, unsafe_allow_html=True)
+st.set_theme("dark")
 
 # ============================================================
 # OPTIONAL LOGO FUNCTION
@@ -587,35 +588,28 @@ with st.sidebar:
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
+# carrega o logo local em base64
 logo_b64 = load_image_base64("rrc.png")
-
-if logo_b64:
-    logo_html = f"""
-    <img src="data:image/png;base64,{logo_b64}" class="logo-img">
-    """
-else:
-    logo_html = ""
 
 st.markdown(
     f"""
     <div class="logo-container">
-        {logo_html}
-        <p style="color:#bbbbbb; font-size:13px; margin-top:6px; margin-bottom:4px;">
+        <img src="data:image/png;base64,{logo_b64}" class="logo-img">
+        <p style="color:#bbbbbb; font-size:13px; margin-top:6px; margin-bottom: inherit;">
             Created by Laís Dalle Mulle – PV Engineer
         </p>
-        <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
+         <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
             LaisDalleMulle@RRCcompanies.com
         </p>
-        <h1 style="color:white; margin-bottom:0;">
-            Physical-Aware Inverter Balance
-        </h1>
+        <h1 style="color:white; margin-bottom:0;">Inverter Loading Ratio Calculation</h1>
         <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
-            DC circuit allocation considering electrical balance and skid physical layout
+            Greedy allocation of DC strings to balance inverter ILR
         </p>
     </div>
     """,
     unsafe_allow_html=True
 )
+
 
 st.markdown(
     """
