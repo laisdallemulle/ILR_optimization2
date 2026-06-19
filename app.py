@@ -89,7 +89,6 @@ body {
 """
 
 st.markdown(custom_css, unsafe_allow_html=True)
-st.set_theme("dark")
 
 # ============================================================
 # OPTIONAL LOGO FUNCTION
