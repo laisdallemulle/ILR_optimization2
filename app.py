@@ -15,8 +15,6 @@ st.set_page_config(
 
 
 
-st.markdown(custom_css, unsafe_allow_html=True)
-
 # ============================================================
 # OPTIONAL LOGO FUNCTION
 # ============================================================
