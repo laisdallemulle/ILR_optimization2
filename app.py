@@ -14,7 +14,7 @@ st.set_page_config(
     page_icon="🔌",
     layout="wide"
 )
-st.subheader("This acts as your page subtitle")
+st.caption("Optional secondary text or a smaller, italicized note")
 
 # ============================================================
 # SESSION STATE
