@@ -789,7 +789,7 @@ if logo_path.exists():
 st.markdown(
     """
     <div class="card">
-        <h2>TMEIC Skid DC Circuit Distribution</h2>
+        <h2>Inverter Loading Ratio Calculation</h2>
         <p>
             Physical-aware distribution of LBD circuits across skid inverters.
             The tool balances total strings and ILR while minimizing North/South
