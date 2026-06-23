@@ -4,13 +4,6 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-\# ============================================================
-
-\#  HEADER AREA
-
-\# ============================================================
-
-st.markdown("<div class='main-block'>", unsafe\_allow\_html=True)
 
 
 # ============================================================
