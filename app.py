@@ -1,146 +1,250 @@
-import streamlit as st
-import pandas as pd
 import re
-import os
-import base64
+from pathlib import Path
+
+import pandas as pd
+import streamlit as st
+
 
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
 st.set_page_config(
-    page_title="Physical-Aware Inverter Balance",
+    page_title="TMEIC Skid Inverter Loading Distribution",
     page_icon="🔌",
     layout="wide"
 )
 
 
+# ============================================================
+# SESSION STATE
+# ============================================================
+if "north_row_count" not in st.session_state:
+    st.session_state.north_row_count = 1
+
+if "south_row_count" not in st.session_state:
+    st.session_state.south_row_count = 1
+
 
 # ============================================================
-# OPTIONAL LOGO FUNCTION
+# HELPER FUNCTIONS
 # ============================================================
-def load_image_base64(path):
-    if not os.path.exists(path):
-        return None
-
-    with open(path, "rb") as file:
-        return base64.b64encode(file.read()).decode()
-
-# ============================================================
-# INPUT PARSING FUNCTIONS
-# ============================================================
-def parse_string_quantities(raw_text):
+def parse_string_quantities(text):
     """
-    Expected format:
-    20 20 20 16 16 20
+    Accepts only positive integer quantities separated by spaces or line breaks.
 
-    Returns:
-    [20, 20, 20, 16, 16, 20]
+    Example:
+    20 20 20 16 16
     """
-    raw_text = raw_text.strip()
+    cleaned = text.strip()
 
-    if not raw_text:
-        raise ValueError("String quantities cannot be empty.")
+    if not cleaned:
+        raise ValueError("String quantities cannot be blank.")
 
-    values = raw_text.split()
-
-    try:
-        quantities = [int(value) for value in values]
-    except ValueError:
+    if "," in cleaned:
         raise ValueError(
-            "String quantities must contain integers separated by spaces only."
+            "Use spaces between string quantities. Commas are not allowed."
         )
 
-    if any(value <= 0 for value in quantities):
+    if not re.fullmatch(r"\d+(\s+\d+)*", cleaned):
+        raise ValueError(
+            "String quantities must contain only positive integers separated by spaces."
+        )
+
+    values = [int(value) for value in cleaned.split()]
+
+    if any(value <= 0 for value in values):
         raise ValueError("All string quantities must be greater than zero.")
 
-    return quantities
+    return values
 
 
-def parse_lbd_selection(raw_text, max_lbd):
+def parse_lbd_row(text):
     """
+    Parses LBD rows.
+
     Accepted examples:
     1 2 3 4 5
-    1-5
-    1 2 5-8 12
+    11-15
+    1 2 10-14 20
 
-    Returns:
-    set of LBD numbers
+    Supports hyphen, en dash, and em dash.
     """
-    raw_text = raw_text.strip()
+    cleaned = text.strip()
 
-    if not raw_text:
-        return set()
+    if not cleaned:
+        return []
 
-    normalized_text = raw_text.replace("–", "-").replace("—", "-")
-    normalized_text = re.sub(r"\s*-\s*", "-", normalized_text)
+    cleaned = re.sub(r"\s*[-–—]\s*", "-", cleaned)
+    tokens = cleaned.split()
 
-    selected_lbds = set()
-    tokens = normalized_text.split()
+    lbd_numbers = []
 
     for token in tokens:
-        if "-" in token:
-            parts = token.split("-")
+        match = re.fullmatch(r"(\d+)(?:-(\d+))?", token)
 
-            if len(parts) != 2:
+        if not match:
+            raise ValueError(
+                f"Invalid LBD entry '{token}'. Use values such as 1 2 3 or 11-15."
+            )
+
+        start = int(match.group(1))
+        end = int(match.group(2)) if match.group(2) else start
+
+        if start <= 0 or end <= 0:
+            raise ValueError("LBD numbers must be greater than zero.")
+
+        if end < start:
+            raise ValueError(
+                f"Invalid range '{token}'. The final number must be greater than or equal to the first."
+            )
+
+        lbd_numbers.extend(range(start, end + 1))
+
+    return lbd_numbers
+
+
+def lbd_name(number):
+    """Returns LBD01, LBD02 ... LBD100, etc."""
+    return f"LBD{number:02d}"
+
+
+def build_lbd_metadata(
+    string_quantities,
+    north_rows,
+    south_rows,
+    physical_layout_enabled
+):
+    """
+    Creates the LBD data structure.
+
+    North:
+    - Last entered North row is closest to the skid.
+    - Example with 3 rows:
+      North Row 1 -> distance 3
+      North Row 2 -> distance 2
+      North Row 3 -> distance 1
+
+    South:
+    - First entered South row is closest to the skid.
+    - Example with 3 rows:
+      South Row 1 -> distance 1
+      South Row 2 -> distance 2
+      South Row 3 -> distance 3
+    """
+    total_lbds = len(string_quantities)
+
+    lbd_data = []
+
+    if not physical_layout_enabled:
+        for index, strings in enumerate(string_quantities, start=1):
+            lbd_data.append({
+                "lbd_number": index,
+                "lbd": lbd_name(index),
+                "strings": strings,
+                "reference_side": "Unrestricted",
+                "reference_row": None,
+                "distance_to_skid": 0
+            })
+
+        return lbd_data
+
+    side_mapping = {}
+
+    # North rows:
+    # Last row added is closest to the skid.
+    north_total_rows = len(north_rows)
+
+    for row_index, row_lbd_numbers in enumerate(north_rows, start=1):
+        distance_to_skid = north_total_rows - row_index + 1
+
+        for lbd_number in row_lbd_numbers:
+            if lbd_number in side_mapping:
                 raise ValueError(
-                    f"Invalid LBD range '{token}'. Use formats such as 1-5."
+                    f"{lbd_name(lbd_number)} was entered more than once."
                 )
 
-            start = int(parts[0])
-            end = int(parts[1])
+            side_mapping[lbd_number] = {
+                "reference_side": "North",
+                "reference_row": row_index,
+                "distance_to_skid": distance_to_skid
+            }
 
-            if start > end:
+    # South rows:
+    # First row added is closest to the skid.
+    for row_index, row_lbd_numbers in enumerate(south_rows, start=1):
+        distance_to_skid = row_index
+
+        for lbd_number in row_lbd_numbers:
+            if lbd_number in side_mapping:
                 raise ValueError(
-                    f"Invalid range '{token}'. The first number must be smaller."
+                    f"{lbd_name(lbd_number)} was entered more than once."
                 )
 
-            for number in range(start, end + 1):
-                selected_lbds.add(number)
-
-        else:
-            selected_lbds.add(int(token))
+            side_mapping[lbd_number] = {
+                "reference_side": "South",
+                "reference_row": row_index,
+                "distance_to_skid": distance_to_skid
+            }
 
     invalid_lbds = [
-        number for number in selected_lbds
-        if number < 1 or number > max_lbd
+        number for number in side_mapping
+        if number < 1 or number > total_lbds
     ]
 
     if invalid_lbds:
+        invalid_names = ", ".join(lbd_name(number) for number in invalid_lbds)
         raise ValueError(
-            f"LBD numbers outside the available range 1-{max_lbd}: {invalid_lbds}"
+            f"The following LBDs are outside the available string quantity list: "
+            f"{invalid_names}"
         )
 
-    return selected_lbds
+    expected_lbds = set(range(1, total_lbds + 1))
+    assigned_lbds = set(side_mapping.keys())
+
+    missing_lbds = sorted(expected_lbds - assigned_lbds)
+
+    if missing_lbds:
+        missing_names = ", ".join(lbd_name(number) for number in missing_lbds)
+        raise ValueError(
+            f"Every LBD must be assigned to North or South. Missing: {missing_names}"
+        )
+
+    for index, strings in enumerate(string_quantities, start=1):
+        location = side_mapping[index]
+
+        lbd_data.append({
+            "lbd_number": index,
+            "lbd": lbd_name(index),
+            "strings": strings,
+            "reference_side": location["reference_side"],
+            "reference_row": location["reference_row"],
+            "distance_to_skid": location["distance_to_skid"]
+        })
+
+    return lbd_data
 
 
-# ============================================================
-# INVERTER / CIRCUIT DATA FUNCTIONS
-# ============================================================
-def build_inverters(num_inverters_south, num_inverters_north):
+def build_inverters(number_north, number_south):
     """
-    Example:
-    South = 3
-    North = 2
+    Inverter numbering follows the requested TMEIC skid convention:
 
-    Result:
-    Inv 1 = South
-    Inv 2 = South
-    Inv 3 = South
-    Inv 4 = North
-    Inv 5 = North
+    South inverters first:
+    Inv 1, Inv 2, Inv 3...
+
+    North inverters continue afterward:
+    Inv 4, Inv 5...
     """
     inverters = []
-
     inverter_number = 1
 
-    for _ in range(num_inverters_south):
+    for _ in range(number_south):
         inverters.append({
             "name": f"Inv {inverter_number}",
             "side": "South"
         })
         inverter_number += 1
 
-    for _ in range(num_inverters_north):
+    for _ in range(number_north):
         inverters.append({
             "name": f"Inv {inverter_number}",
             "side": "North"
@@ -150,284 +254,371 @@ def build_inverters(num_inverters_south, num_inverters_north):
     return inverters
 
 
-def build_circuits(string_quantities, lbd_north, lbd_south):
-    circuits = []
+def calculate_loads(lbd_data, assignment, inverter_count):
+    """Calculates total strings assigned to each inverter."""
+    loads = [0] * inverter_count
 
-    for index, quantity in enumerate(string_quantities, start=1):
-        if index in lbd_north:
-            side = "North"
-        elif index in lbd_south:
-            side = "South"
-        else:
-            side = "Unassigned"
+    for lbd_index, inverter_index in enumerate(assignment):
+        loads[inverter_index] += lbd_data[lbd_index]["strings"]
 
-        circuits.append({
-            "lbd_number": index,
-            "lbd_name": f"LBD{index:02d}",
-            "strings": quantity,
-            "side": side
-        })
-
-    return circuits
+    return loads
 
 
-def is_crossing(circuit_side, inverter_side):
+def calculate_objective(
+    lbd_data,
+    assignment,
+    inverters,
+    physical_layout_enabled
+):
     """
-    Unassigned LBDs are considered neutral.
+    Optimization priority:
+
+    1. Minimize the maximum difference from the average inverter loading.
+    2. Minimize the total squared deviation from the average loading.
+    3. Minimize total number of North/South crossings.
+    4. Minimize crossing distance from the skid.
+
+    Therefore, crossing circuits are only selected when they improve
+    the electrical balance or are necessary to reach an equivalent
+    electrical balance.
     """
-    if circuit_side == "Unassigned":
-        return False
+    inverter_count = len(inverters)
+    loads = calculate_loads(lbd_data, assignment, inverter_count)
 
-    return circuit_side != inverter_side
+    total_strings = sum(loads)
+    target = total_strings / inverter_count
 
+    deviations = [abs(load - target) for load in loads]
+    max_deviation = max(deviations)
+    squared_deviation = sum((load - target) ** 2 for load in loads)
 
-# ============================================================
-# BALANCING / OPTIMIZATION FUNCTIONS
-# ============================================================
-def calculate_metrics(assignments, circuits, inverters):
-    inverter_sums = [0] * len(inverters)
-    crossings = 0
-
-    for circuit_index, inverter_index in enumerate(assignments):
-        circuit = circuits[circuit_index]
-        inverter = inverters[inverter_index]
-
-        inverter_sums[inverter_index] += circuit["strings"]
-
-        if is_crossing(circuit["side"], inverter["side"]):
-            crossings += 1
-
-    total_strings = sum(inverter_sums)
-    target_strings = total_strings / len(inverters)
-
-    max_strings = max(inverter_sums)
-    min_strings = min(inverter_sums)
-
-    string_range = max_strings - min_strings
-
-    sum_squared_error = sum(
-        (value - target_strings) ** 2
-        for value in inverter_sums
-    )
-
-    return {
-        "sums": inverter_sums,
-        "target": target_strings,
-        "range": string_range,
-        "sse": sum_squared_error,
-        "crossings": crossings
-    }
-
-
-def get_balance_key(metrics):
-    """
-    Lower values are better.
-
-    Priority:
-    1. Lower maximum difference between inverter string totals
-    2. Lower deviation from target average
-    """
-    return (
-        metrics["range"],
-        round(metrics["sse"], 8)
-    )
-
-
-def get_full_key(metrics):
-    """
-    Used after physical-side preference is enabled.
-
-    Priority:
-    1. Electrical balance
-    2. Lower deviation from average
-    3. Fewer crossings
-    """
-    return (
-        metrics["range"],
-        round(metrics["sse"], 8),
-        metrics["crossings"]
-    )
-
-
-def initial_physical_assignment(circuits, inverters, use_physical_preference):
-    """
-    Initial greedy distribution.
-
-    When physical preference is active:
-    - North LBDs go first to North inverters
-    - South LBDs go first to South inverters
-    - Unassigned LBDs can go anywhere
-    """
-    assignments = [-1] * len(circuits)
-    inverter_sums = [0] * len(inverters)
-
-    sorted_circuit_indices = sorted(
-        range(len(circuits)),
-        key=lambda index: circuits[index]["strings"],
-        reverse=True
-    )
-
-    for circuit_index in sorted_circuit_indices:
-        circuit = circuits[circuit_index]
-
-        if use_physical_preference and circuit["side"] in ["North", "South"]:
-            valid_inverters = [
-                index
-                for index, inverter in enumerate(inverters)
-                if inverter["side"] == circuit["side"]
-            ]
-
-            # If there are no inverters on that side,
-            # the circuit must cross to the opposite side.
-            if not valid_inverters:
-                valid_inverters = list(range(len(inverters)))
-        else:
-            valid_inverters = list(range(len(inverters)))
-
-        selected_inverter = min(
-            valid_inverters,
-            key=lambda inverter_index: inverter_sums[inverter_index]
+    if not physical_layout_enabled:
+        return (
+            round(max_deviation, 8),
+            round(squared_deviation, 8)
         )
 
-        assignments[circuit_index] = selected_inverter
-        inverter_sums[selected_inverter] += circuit["strings"]
+    crossing_count = 0
+    crossing_distance = 0
 
-    return assignments
+    for lbd_index, inverter_index in enumerate(assignment):
+        lbd = lbd_data[lbd_index]
+        inverter = inverters[inverter_index]
 
+        if lbd["reference_side"] != inverter["side"]:
+            crossing_count += 1
+            crossing_distance += lbd["distance_to_skid"]
 
-def improve_without_new_crossings(circuits, inverters, assignments):
-    """
-    Improves inverter balance while maintaining same-side preference.
-    It does not create additional crossings.
-    """
-    max_iterations = len(circuits) * len(inverters) * 5
-    iteration = 0
-
-    while iteration < max_iterations:
-        iteration += 1
-
-        current_metrics = calculate_metrics(assignments, circuits, inverters)
-        current_key = get_balance_key(current_metrics)
-
-        best_move = None
-        best_key = current_key
-
-        for circuit_index, circuit in enumerate(circuits):
-            current_inverter = assignments[circuit_index]
-
-            for candidate_inverter in range(len(inverters)):
-                if candidate_inverter == current_inverter:
-                    continue
-
-                candidate_inverter_side = inverters[candidate_inverter]["side"]
-
-                # Do not create a crossing during this phase.
-                if is_crossing(circuit["side"], candidate_inverter_side):
-                    continue
-
-                candidate_assignments = assignments.copy()
-                candidate_assignments[circuit_index] = candidate_inverter
-
-                candidate_metrics = calculate_metrics(
-                    candidate_assignments,
-                    circuits,
-                    inverters
-                )
-
-                candidate_key = get_balance_key(candidate_metrics)
-
-                if candidate_key < best_key:
-                    best_key = candidate_key
-                    best_move = candidate_assignments
-
-        if best_move is None:
-            break
-
-        assignments = best_move
-
-    return assignments
+    return (
+        round(max_deviation, 8),
+        round(squared_deviation, 8),
+        crossing_count,
+        crossing_distance
+    )
 
 
-def improve_with_crossings_if_needed(circuits, inverters, assignments):
-    """
-    Allows cross-side assignments only when they improve the
-    electrical balance of the inverter set.
-
-    A crossing will not be added merely for convenience.
-    It must reduce the inverter imbalance.
-    """
-    max_iterations = len(circuits) * len(inverters) * 10
-    iteration = 0
-
-    while iteration < max_iterations:
-        iteration += 1
-
-        current_metrics = calculate_metrics(assignments, circuits, inverters)
-        current_key = get_full_key(current_metrics)
-
-        best_move = None
-        best_key = current_key
-
-        for circuit_index, circuit in enumerate(circuits):
-            current_inverter = assignments[circuit_index]
-
-            for candidate_inverter in range(len(inverters)):
-                if candidate_inverter == current_inverter:
-                    continue
-
-                candidate_assignments = assignments.copy()
-                candidate_assignments[circuit_index] = candidate_inverter
-
-                candidate_metrics = calculate_metrics(
-                    candidate_assignments,
-                    circuits,
-                    inverters
-                )
-
-                candidate_key = get_full_key(candidate_metrics)
-
-                # A new crossing is accepted only if total electrical
-                # balance improves enough to reduce the optimization key.
-                if candidate_key < best_key:
-                    best_key = candidate_key
-                    best_move = candidate_assignments
-
-        if best_move is None:
-            break
-
-        assignments = best_move
-
-    return assignments
-
-
-def get_assignment_reason(
-    circuit,
-    inverter,
-    original_assignment,
-    final_assignment,
-    circuit_index,
-    inverters
+def greedy_initial_assignment(
+    lbd_data,
+    inverters,
+    physical_layout_enabled,
+    respect_physical_side=True
 ):
-    crossing = is_crossing(circuit["side"], inverter["side"])
+    """
+    Creates an initial LPT/greedy allocation.
 
-    if circuit["side"] == "Unassigned":
-        return "LBD physical side was not defined."
+    When respect_physical_side=True:
+    LBDs are initially allocated only to inverters on their own side.
 
-    if not crossing:
-        return "Assigned to an inverter on the same physical side."
+    When respect_physical_side=False:
+    The allocation ignores North/South location and balances purely
+    based on string quantities.
+    """
+    inverter_count = len(inverters)
+    assignment = [-1] * len(lbd_data)
+    loads = [0] * inverter_count
 
-    same_side_inverters = [
-        item for item in inverters
-        if item["side"] == circuit["side"]
-    ]
+    # Larger blocks first.
+    sorted_indices = sorted(
+        range(len(lbd_data)),
+        key=lambda i: (
+            -lbd_data[i]["strings"],
+            lbd_data[i]["distance_to_skid"]
+        )
+    )
 
-    if not same_side_inverters:
-        return "Crossing required because there is no inverter on the LBD physical side."
+    for lbd_index in sorted_indices:
+        lbd = lbd_data[lbd_index]
 
-    if original_assignment[circuit_index] != final_assignment[circuit_index]:
-        return "Crossing added because it improved the overall inverter balance."
+        if physical_layout_enabled and respect_physical_side:
+            candidate_inverters = [
+                index
+                for index, inverter in enumerate(inverters)
+                if inverter["side"] == lbd["reference_side"]
+            ]
 
-    return "Cross-side allocation required by available inverter configuration."
+            if not candidate_inverters:
+                raise ValueError(
+                    f"{lbd['lbd']} is on the {lbd['reference_side']} side, "
+                    f"but there are no inverters configured on that side."
+                )
+        else:
+            candidate_inverters = list(range(inverter_count))
+
+        chosen_inverter = min(
+            candidate_inverters,
+            key=lambda inverter_index: (
+                loads[inverter_index],
+                inverter_index
+            )
+        )
+
+        assignment[lbd_index] = chosen_inverter
+        loads[chosen_inverter] += lbd["strings"]
+
+    return assignment
+
+
+def optimize_assignment(
+    lbd_data,
+    initial_assignment,
+    inverters,
+    physical_layout_enabled,
+    max_iterations=250
+):
+    """
+    Applies iterative improvement using:
+
+    - Individual LBD moves
+    - LBD swaps between inverter assignments
+
+    This improves the initial greedy distribution while preserving
+    the optimization priority defined in calculate_objective().
+    """
+    current_assignment = initial_assignment.copy()
+
+    current_objective = calculate_objective(
+        lbd_data,
+        current_assignment,
+        inverters,
+        physical_layout_enabled
+    )
+
+    inverter_count = len(inverters)
+    lbd_count = len(lbd_data)
+
+    for _ in range(max_iterations):
+        best_assignment = current_assignment
+        best_objective = current_objective
+        improvement_found = False
+
+        # ----------------------------------------------------
+        # INDIVIDUAL LBD MOVES
+        # ----------------------------------------------------
+        for lbd_index in range(lbd_count):
+            current_inverter = current_assignment[lbd_index]
+
+            for candidate_inverter in range(inverter_count):
+                if candidate_inverter == current_inverter:
+                    continue
+
+                candidate_assignment = current_assignment.copy()
+                candidate_assignment[lbd_index] = candidate_inverter
+
+                candidate_objective = calculate_objective(
+                    lbd_data,
+                    candidate_assignment,
+                    inverters,
+                    physical_layout_enabled
+                )
+
+                if candidate_objective < best_objective:
+                    best_assignment = candidate_assignment
+                    best_objective = candidate_objective
+                    improvement_found = True
+
+        # ----------------------------------------------------
+        # SWAPS BETWEEN TWO LBDS
+        # ----------------------------------------------------
+        for first_lbd in range(lbd_count):
+            for second_lbd in range(first_lbd + 1, lbd_count):
+                first_inverter = current_assignment[first_lbd]
+                second_inverter = current_assignment[second_lbd]
+
+                if first_inverter == second_inverter:
+                    continue
+
+                candidate_assignment = current_assignment.copy()
+                candidate_assignment[first_lbd] = second_inverter
+                candidate_assignment[second_lbd] = first_inverter
+
+                candidate_objective = calculate_objective(
+                    lbd_data,
+                    candidate_assignment,
+                    inverters,
+                    physical_layout_enabled
+                )
+
+                if candidate_objective < best_objective:
+                    best_assignment = candidate_assignment
+                    best_objective = candidate_objective
+                    improvement_found = True
+
+        if not improvement_found:
+            break
+
+        current_assignment = best_assignment
+        current_objective = best_objective
+
+    return current_assignment, current_objective
+
+
+def find_best_distribution(
+    lbd_data,
+    inverters,
+    physical_layout_enabled
+):
+    """
+    Runs more than one starting point and retains the best final result.
+
+    Starting point 1:
+    Physical-side-first allocation.
+
+    Starting point 2:
+    Pure mathematical/global allocation.
+
+    The final result is selected using the same objective hierarchy.
+    """
+    candidate_assignments = []
+
+    if physical_layout_enabled:
+        candidate_assignments.append(
+            greedy_initial_assignment(
+                lbd_data,
+                inverters,
+                physical_layout_enabled=True,
+                respect_physical_side=True
+            )
+        )
+
+        candidate_assignments.append(
+            greedy_initial_assignment(
+                lbd_data,
+                inverters,
+                physical_layout_enabled=True,
+                respect_physical_side=False
+            )
+        )
+    else:
+        candidate_assignments.append(
+            greedy_initial_assignment(
+                lbd_data,
+                inverters,
+                physical_layout_enabled=False,
+                respect_physical_side=False
+            )
+        )
+
+    best_assignment = None
+    best_objective = None
+
+    for initial_assignment in candidate_assignments:
+        optimized_assignment, objective = optimize_assignment(
+            lbd_data=lbd_data,
+            initial_assignment=initial_assignment,
+            inverters=inverters,
+            physical_layout_enabled=physical_layout_enabled
+        )
+
+        if best_objective is None or objective < best_objective:
+            best_assignment = optimized_assignment
+            best_objective = objective
+
+    return best_assignment, best_objective
+
+
+def build_result_tables(
+    lbd_data,
+    assignment,
+    inverters,
+    modules_per_string,
+    module_power_w,
+    inverter_power_kva,
+    physical_layout_enabled
+):
+    """Builds the inverter summary and LBD-level assignment tables."""
+    inverter_count = len(inverters)
+    loads = calculate_loads(lbd_data, assignment, inverter_count)
+
+    summary_rows = []
+
+    for inverter_index, inverter in enumerate(inverters):
+        total_strings = loads[inverter_index]
+        dc_power_kw = (
+            total_strings
+            * modules_per_string
+            * module_power_w
+            / 1000
+        )
+
+        ilr = (
+            dc_power_kw / inverter_power_kva
+            if inverter_power_kva > 0
+            else 0
+        )
+
+        assigned_lbds = [
+            lbd_data[lbd_index]["lbd"]
+            for lbd_index, assigned_inverter in enumerate(assignment)
+            if assigned_inverter == inverter_index
+        ]
+
+        summary_rows.append({
+            "Inverter": inverter["name"],
+            "Side": inverter["side"],
+            "Total Strings": total_strings,
+            "DC Power (kW)": round(dc_power_kw, 2),
+            "ILR": round(ilr, 3),
+            "Assigned LBDs": ", ".join(assigned_lbds)
+        })
+
+    assignment_rows = []
+
+    for lbd_index, inverter_index in enumerate(assignment):
+        lbd = lbd_data[lbd_index]
+        inverter = inverters[inverter_index]
+
+        is_crossing = (
+            physical_layout_enabled
+            and lbd["reference_side"] != inverter["side"]
+        )
+
+        if is_crossing:
+            crossing_direction = (
+                f"{lbd['reference_side']} → {inverter['side']}"
+            )
+        else:
+            crossing_direction = ""
+
+        assignment_rows.append({
+            "LBD": lbd["lbd"],
+            "Strings": lbd["strings"],
+            "Reference Side": lbd["reference_side"],
+            "Reference Row": (
+                f"Row {lbd['reference_row']}"
+                if lbd["reference_row"] is not None
+                else ""
+            ),
+            "Distance to Skid": lbd["distance_to_skid"],
+            "Assigned Inverter": inverter["name"],
+            "Inverter Side": inverter["side"],
+            "Crossing Required": "Yes" if is_crossing else "No",
+            "Crossing Direction": crossing_direction
+        })
+
+    summary_df = pd.DataFrame(summary_rows)
+    assignment_df = pd.DataFrame(assignment_rows)
+
+    return summary_df, assignment_df
 
 
 # ============================================================
@@ -436,74 +627,151 @@ def get_assignment_reason(
 with st.sidebar:
     st.header("Input Parameters")
 
-    string_input = st.text_input(
-        "String quantities (space separated)",
+    string_input = st.text_area(
+        "String quantities (space bar separated)",
         value="20 20 20 20 20 20 20 20 20 16 20 16 16",
+        height=100,
         help=(
-            "Example: 20 20 20 16. "
-            "The first value represents LBD01, the second LBD02, and so on."
+            "Each value corresponds sequentially to LBD01, LBD02, LBD03, etc. "
+            "Example: 20 20 16 means LBD01 = 20 strings, "
+            "LBD02 = 20 strings, and LBD03 = 16 strings."
         )
     )
 
-    lbd_north_input = st.text_input(
-        "LBD North",
-        value="1-10",
-        help="Examples: 1-10 or 1 2 3 4 5 6 7 8 9 10"
+    physical_layout_option = st.radio(
+        "Skid physical layout",
+        options=[
+            "North / South aware",
+            "No physical-side restriction"
+        ],
+        index=0,
+        help=(
+            "North / South aware prioritizes same-side assignments and "
+            "minimizes circuit crossings. No physical-side restriction "
+            "uses only mathematical load balancing."
+        )
     )
 
-    lbd_south_input = st.text_input(
-        "LBD South",
-        value="11-13",
-        help="Examples: 11-15 or 11 12 13 14 15"
+    physical_layout_enabled = (
+        physical_layout_option == "North / South aware"
     )
 
-    num_inverters_north = st.number_input(
-        "Number of inverters North",
-        min_value=0,
-        step=1,
-        value=2
-    )
+    st.markdown("---")
+    st.subheader("Inverter Configuration")
 
-    num_inverters_south = st.number_input(
-        "Number of inverters South",
-        min_value=0,
-        step=1,
-        value=3
-    )
+    inverter_col_1, inverter_col_2 = st.columns(2)
 
-    power_inverter = st.number_input(
+    with inverter_col_1:
+        number_inverters_north = st.number_input(
+            "Number of inverters North",
+            min_value=0,
+            step=1,
+            value=2
+        )
+
+    with inverter_col_2:
+        number_inverters_south = st.number_input(
+            "Number of inverters South",
+            min_value=0,
+            step=1,
+            value=3
+        )
+
+    inverter_power_kva = st.number_input(
         "Inverter AC power (kVA)",
-        min_value=0.0,
+        min_value=1.0,
         step=10.0,
         value=1100.0
     )
 
-    str_moduleqty = st.number_input(
+    modules_per_string = st.number_input(
         "Modules per string",
         min_value=1,
         step=1,
         value=27
     )
 
-    pot_module = st.number_input(
+    module_power_w = st.number_input(
         "Module power (W)",
         min_value=1.0,
         step=5.0,
         value=625.0
     )
 
-    use_physical_preference = st.checkbox(
-        "Prioritize North/South physical allocation",
-        value=True,
-        help=(
-            "When selected, the tool first keeps LBDs on the same side "
-            "as their assigned inverter and allows crossings only when "
-            "they improve electrical balance."
+    if physical_layout_enabled:
+        st.markdown("---")
+        st.subheader("North LBD Rows")
+
+        st.caption(
+            "North priority: the last row added is closest to the skid."
         )
-    )
+
+        for row_index in range(st.session_state.north_row_count):
+            default_value = ""
+
+            if row_index == 0:
+                default_value = "1-10"
+
+            st.text_input(
+                f"LBD North Row {row_index + 1}",
+                value=default_value,
+                key=f"north_row_{row_index}",
+                help=(
+                    "Use individual LBD numbers separated by spaces or a range. "
+                    "Examples: 1 2 3 4 5 or 1-5."
+                )
+            )
+
+        north_button_1, north_button_2 = st.columns(2)
+
+        with north_button_1:
+            if st.button("➕ Add North Row"):
+                st.session_state.north_row_count += 1
+                st.rerun()
+
+        with north_button_2:
+            if st.button("➖ Remove North Row"):
+                if st.session_state.north_row_count > 1:
+                    st.session_state.north_row_count -= 1
+                    st.rerun()
+
+        st.markdown("---")
+        st.subheader("South LBD Rows")
+
+        st.caption(
+            "South priority: the first row added is closest to the skid."
+        )
+
+        for row_index in range(st.session_state.south_row_count):
+            default_value = ""
+
+            if row_index == 0:
+                default_value = "11-13"
+
+            st.text_input(
+                f"LBD South Row {row_index + 1}",
+                value=default_value,
+                key=f"south_row_{row_index}",
+                help=(
+                    "Use individual LBD numbers separated by spaces or a range. "
+                    "Examples: 11 12 13 14 15 or 11-15."
+                )
+            )
+
+        south_button_1, south_button_2 = st.columns(2)
+
+        with south_button_1:
+            if st.button("➕ Add South Row"):
+                st.session_state.south_row_count += 1
+                st.rerun()
+
+        with south_button_2:
+            if st.button("➖ Remove South Row"):
+                if st.session_state.south_row_count > 1:
+                    st.session_state.south_row_count -= 1
+                    st.rerun()
 
     st.markdown("---")
-
     run_button = st.button("Run Distribution")
 
 
@@ -512,37 +780,38 @@ with st.sidebar:
 # ============================================================
 st.markdown("<div class='main-block'>", unsafe_allow_html=True)
 
-# carrega o logo local em base64
-logo_b64 = load_image_base64("rrc.png")
+logo_path = Path("rrc.png")
+
+if logo_path.exists():
+    st.image(str(logo_path), width=85)
 
 st.markdown(
-    f"""
-    <div class="logo-container">
-        <img src="data:image/png;base64,{logo_b64}" class="logo-img">
-        <p style="color:#bbbbbb; font-size:13px; margin-top:6px; margin-bottom: inherit;">
-            Created by Laís Dalle Mulle – PV Engineer
-        </p>
-         <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
-            LaisDalleMulle@RRCcompanies.com
-        </p>
-        <h1 style="color:white; margin-bottom:0;">Inverter Loading Ratio Calculation</h1>
-        <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
-            Greedy allocation of DC strings to balance inverter ILR
+    """
+    <div class="card">
+        <h2>TMEIC Skid DC Circuit Distribution</h2>
+        <p>
+            Physical-aware distribution of LBD circuits across skid inverters.
+            The tool balances total strings and ILR while minimizing North/South
+            circuit crossings.
         </p>
     </div>
     """,
     unsafe_allow_html=True
 )
 
-
 st.markdown(
     """
     <div class="card">
-        <h3>Allocation Logic</h3>
+        <h3>Optimization Logic</h3>
+        <ol>
+            <li>Minimize the maximum inverter loading deviation.</li>
+            <li>Minimize total loading variation between inverters.</li>
+            <li>Minimize the number of North/South circuit crossings.</li>
+            <li>For equivalent solutions, select crossings closest to the skid.</li>
+        </ol>
         <p>
-            The tool first assigns North LBDs to North inverters and South LBDs to South
-            inverters. It then improves the balance while maintaining the same-side preference.
-            Cross-side circuits are only added when they improve the overall inverter loading balance.
+            North rows are prioritized from the last added row toward the first row.
+            South rows are prioritized from the first added row toward the last row.
         </p>
     </div>
     """,
@@ -555,349 +824,219 @@ st.markdown(
 # ============================================================
 if run_button:
     try:
-        # --------------------------------------------------------
-        # Parse inputs
-        # --------------------------------------------------------
         string_quantities = parse_string_quantities(string_input)
 
-        total_lbds = len(string_quantities)
-
-        lbd_north = parse_lbd_selection(
-            lbd_north_input,
-            total_lbds
+        total_inverters = (
+            int(number_inverters_north)
+            + int(number_inverters_south)
         )
-
-        lbd_south = parse_lbd_selection(
-            lbd_south_input,
-            total_lbds
-        )
-
-        if lbd_north.intersection(lbd_south):
-            overlap = sorted(lbd_north.intersection(lbd_south))
-
-            raise ValueError(
-                f"The following LBDs were assigned to both North and South: {overlap}"
-            )
-
-        total_inverters = num_inverters_north + num_inverters_south
 
         if total_inverters <= 0:
             raise ValueError(
-                "At least one North or South inverter must be defined."
+                "At least one inverter must be configured."
             )
 
-        # --------------------------------------------------------
-        # Build circuit and inverter objects
-        # --------------------------------------------------------
-        circuits = build_circuits(
-            string_quantities,
-            lbd_north,
-            lbd_south
+        if physical_layout_enabled:
+            north_rows = []
+
+            for row_index in range(st.session_state.north_row_count):
+                row_text = st.session_state.get(
+                    f"north_row_{row_index}",
+                    ""
+                )
+                north_rows.append(parse_lbd_row(row_text))
+
+            south_rows = []
+
+            for row_index in range(st.session_state.south_row_count):
+                row_text = st.session_state.get(
+                    f"south_row_{row_index}",
+                    ""
+                )
+                south_rows.append(parse_lbd_row(row_text))
+
+        else:
+            north_rows = []
+            south_rows = []
+
+        lbd_data = build_lbd_metadata(
+            string_quantities=string_quantities,
+            north_rows=north_rows,
+            south_rows=south_rows,
+            physical_layout_enabled=physical_layout_enabled
         )
 
         inverters = build_inverters(
-            num_inverters_south,
-            num_inverters_north
+            number_north=int(number_inverters_north),
+            number_south=int(number_inverters_south)
         )
 
-        # --------------------------------------------------------
-        # Allocation process
-        # --------------------------------------------------------
-        original_assignments = initial_physical_assignment(
-            circuits,
-            inverters,
-            use_physical_preference
+        assignment, objective = find_best_distribution(
+            lbd_data=lbd_data,
+            inverters=inverters,
+            physical_layout_enabled=physical_layout_enabled
         )
 
-        assignments = original_assignments.copy()
-
-        if use_physical_preference:
-            assignments = improve_without_new_crossings(
-                circuits,
-                inverters,
-                assignments
-            )
-
-            assignments = improve_with_crossings_if_needed(
-                circuits,
-                inverters,
-                assignments
-            )
-        else:
-            assignments = improve_with_crossings_if_needed(
-                circuits,
-                inverters,
-                assignments
-            )
-
-        # --------------------------------------------------------
-        # Metrics
-        # --------------------------------------------------------
-        final_metrics = calculate_metrics(
-            assignments,
-            circuits,
-            inverters
+        summary_df, assignment_df = build_result_tables(
+            lbd_data=lbd_data,
+            assignment=assignment,
+            inverters=inverters,
+            modules_per_string=modules_per_string,
+            module_power_w=module_power_w,
+            inverter_power_kva=inverter_power_kva,
+            physical_layout_enabled=physical_layout_enabled
         )
 
-        inverter_sums = final_metrics["sums"]
+        total_strings = summary_df["Total Strings"].sum()
+        average_strings = total_strings / len(summary_df)
+        min_strings = summary_df["Total Strings"].min()
+        max_strings = summary_df["Total Strings"].max()
+        max_string_difference = max_strings - min_strings
 
-        # --------------------------------------------------------
-        # Summary table
-        # --------------------------------------------------------
-        summary_data = []
+        ilr_mean = summary_df["ILR"].mean()
+        ilr_min = summary_df["ILR"].min()
+        ilr_max = summary_df["ILR"].max()
+        ilr_std = summary_df["ILR"].std()
 
-        for inverter_index, inverter in enumerate(inverters):
-            total_strings = inverter_sums[inverter_index]
-
-            dc_power_kw = (
-                total_strings
-                * str_moduleqty
-                * (pot_module / 1000.0)
-            )
-
-            ilr = (
-                dc_power_kw / power_inverter
-                if power_inverter > 0
-                else 0
-            )
-
-            assigned_circuits = [
-                circuits[circuit_index]
-                for circuit_index, assigned_inverter in enumerate(assignments)
-                if assigned_inverter == inverter_index
-            ]
-
-            crossing_count = sum(
-                1
-                for circuit in assigned_circuits
-                if is_crossing(circuit["side"], inverter["side"])
-            )
-
-            summary_data.append({
-                "Inverter": inverter["name"],
-                "Inverter Side": inverter["side"],
-                "Total Strings": total_strings,
-                "DC Power (kW)": round(dc_power_kw, 2),
-                "ILR": round(ilr, 3),
-                "Crossing Circuits": crossing_count
-            })
-
-        df_summary = pd.DataFrame(summary_data)
-
-        # --------------------------------------------------------
-        # Circuit assignment table
-        # --------------------------------------------------------
-        assignment_data = []
-
-        for circuit_index, circuit in enumerate(circuits):
-            inverter_index = assignments[circuit_index]
-            inverter = inverters[inverter_index]
-
-            crossing = is_crossing(
-                circuit["side"],
-                inverter["side"]
-            )
-
-            reason = get_assignment_reason(
-                circuit,
-                inverter,
-                original_assignments,
-                assignments,
-                circuit_index,
-                inverters
-            )
-
-            assignment_data.append({
-                "LBD": circuit["lbd_name"],
-                "Strings": circuit["strings"],
-                "LBD Side": circuit["side"],
-                "Assigned Inverter": inverter["name"],
-                "Inverter Side": inverter["side"],
-                "Crossing": "YES" if crossing else "NO",
-                "Assignment Reason": reason
-            })
-
-        df_assignments = pd.DataFrame(assignment_data)
-
-        # --------------------------------------------------------
-        # Statistics
-        # --------------------------------------------------------
-        ilr_mean = df_summary["ILR"].mean()
-        ilr_min = df_summary["ILR"].min()
-        ilr_max = df_summary["ILR"].max()
-        ilr_std = df_summary["ILR"].std()
-
-        unassigned_lbds = [
-            circuit["lbd_name"]
-            for circuit in circuits
-            if circuit["side"] == "Unassigned"
-        ]
-
-        # --------------------------------------------------------
-        # Display general results
-        # --------------------------------------------------------
-        st.markdown("## Allocation Summary")
-
-        col1, col2, col3, col4 = st.columns(4)
-
-        col1.metric(
-            "Total LBDs",
-            total_lbds
-        )
-
-        col2.metric(
-            "Total Inverters",
-            total_inverters
-        )
-
-        col3.metric(
-            "Final String Difference",
-            f"{final_metrics['range']} strings"
-        )
-
-        col4.metric(
-            "Crossing Circuits",
-            final_metrics["crossings"]
-        )
-
-        if unassigned_lbds:
-            st.warning(
-                "The following LBDs were not assigned to North or South and were "
-                f"treated as physically neutral: {', '.join(unassigned_lbds)}"
-            )
-
-        st.markdown(
-            f"""
-            <div class="card">
-                <h3>ILR Statistics</h3>
-                <p><b>Mean ILR:</b> {ilr_mean:.3f}</p>
-                <p><b>Min ILR:</b> {ilr_min:.3f}</p>
-                <p><b>Max ILR:</b> {ilr_max:.3f}</p>
-                <p><b>ILR Standard Deviation:</b> {ilr_std:.3f}</p>
-                <p><b>Target Strings per Inverter:</b> {final_metrics["target"]:.2f}</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # --------------------------------------------------------
-        # Per-inverter cards
-        # --------------------------------------------------------
-        st.markdown("## Inverter Distribution")
-
-        cols = st.columns(2)
-
-        for inverter_index, inverter in enumerate(inverters):
-            col = cols[inverter_index % 2]
-
-            assigned_rows = df_assignments[
-                df_assignments["Assigned Inverter"] == inverter["name"]
-            ]
-
-            assigned_lbds = assigned_rows["LBD"].tolist()
-            crossing_lbds = assigned_rows[
-                assigned_rows["Crossing"] == "YES"
-            ]["LBD"].tolist()
-
-            summary_row = df_summary.iloc[inverter_index]
-
-            with col:
-                crossing_text = (
-                    ", ".join(crossing_lbds)
-                    if crossing_lbds
-                    else "None"
-                )
-
-                st.markdown(
-                    f"""
-                    <div class="card">
-                        <h3>{inverter["name"]} – {inverter["side"]}</h3>
-                        <p><b>Assigned LBDs:</b> {", ".join(assigned_lbds)}</p>
-                        <p><b>Total Strings:</b> {summary_row["Total Strings"]}</p>
-                        <p><b>DC Power:</b> {summary_row["DC Power (kW)"]:.2f} kW</p>
-                        <p><b>ILR:</b> {summary_row["ILR"]:.3f}</p>
-                        <p><b>Crossing LBDs:</b> {crossing_text}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-        # --------------------------------------------------------
-        # Tables and Charts
-        # --------------------------------------------------------
-        st.markdown("## Inverter Summary Table")
-        st.dataframe(
-            df_summary.set_index("Inverter"),
-            use_container_width=True
-        )
-
-        st.markdown("## Circuit Assignment Table")
-
-        def highlight_crossings(row):
-            if row["Crossing"] == "YES":
-                return [
-                    "background-color: #5a1f1f; color: #ffffff;"
-                    for _ in row
-                ]
-
-            return [
-                ""
-                for _ in row
-            ]
-
-        st.dataframe(
-            df_assignments.style.apply(
-                highlight_crossings,
-                axis=1
-            ),
-            use_container_width=True
-        )
-
-        crossings_df = df_assignments[
-            df_assignments["Crossing"] == "YES"
+        crossing_df = assignment_df[
+            assignment_df["Crossing Required"] == "Yes"
         ].copy()
 
-        st.markdown("## Crossing Circuits")
+        crossing_count = len(crossing_df)
 
-        if crossings_df.empty:
-            st.success(
-                "No cross-side circuits were required. All LBDs were allocated "
-                "to inverters on the same physical side."
-            )
-        else:
-            st.warning(
-                "The following circuits cross between the North and South sides "
-                "of the skid because doing so improved the inverter balance."
-            )
+        # ====================================================
+        # SUMMARY METRICS
+        # ====================================================
+        st.markdown("## Distribution Summary")
 
-            st.dataframe(
-                crossings_df[
-                    [
-                        "LBD",
-                        "Strings",
-                        "LBD Side",
-                        "Assigned Inverter",
-                        "Inverter Side",
-                        "Assignment Reason"
-                    ]
-                ],
-                use_container_width=True
-            )
+        metric_col_1, metric_col_2, metric_col_3, metric_col_4, metric_col_5 = st.columns(5)
 
-        st.markdown("## Charts")
+        metric_col_1.metric(
+            "Total LBDs",
+            len(lbd_data)
+        )
 
-        chart_col1, chart_col2 = st.columns(2)
+        metric_col_2.metric(
+            "Total Strings",
+            total_strings
+        )
 
-        with chart_col1:
+        metric_col_3.metric(
+            "Average Strings / Inverter",
+            f"{average_strings:.2f}"
+        )
+
+        metric_col_4.metric(
+            "Max String Difference",
+            max_string_difference
+        )
+
+        metric_col_5.metric(
+            "Crossing Circuits",
+            crossing_count if physical_layout_enabled else "N/A"
+        )
+
+        st.markdown("")
+
+        ilr_col_1, ilr_col_2, ilr_col_3, ilr_col_4 = st.columns(4)
+
+        ilr_col_1.metric("Mean ILR", f"{ilr_mean:.3f}")
+        ilr_col_2.metric("Min ILR", f"{ilr_min:.3f}")
+        ilr_col_3.metric("Max ILR", f"{ilr_max:.3f}")
+        ilr_col_4.metric("ILR Std. Dev.", f"{ilr_std:.3f}")
+
+        # ====================================================
+        # INVERTER SUMMARY
+        # ====================================================
+        st.markdown("## Inverter Summary")
+
+        st.dataframe(
+            summary_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        chart_col_1, chart_col_2 = st.columns(2)
+
+        with chart_col_1:
             st.markdown("### Strings per Inverter")
-            st.bar_chart(
-                df_summary.set_index("Inverter")["Total Strings"]
+
+            string_chart_df = summary_df.set_index("Inverter")[["Total Strings"]]
+            st.bar_chart(string_chart_df)
+
+        with chart_col_2:
+            st.markdown("### ILR per Inverter")
+
+            ilr_chart_df = summary_df.set_index("Inverter")[["ILR"]]
+            st.bar_chart(ilr_chart_df)
+
+        # ====================================================
+        # LBD ASSIGNMENT TABLE
+        # ====================================================
+        st.markdown("## LBD Circuit Assignment")
+
+        st.dataframe(
+            assignment_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # ====================================================
+        # CROSSING CIRCUITS
+        # ====================================================
+        if physical_layout_enabled:
+            st.markdown("## Crossing Circuits")
+
+            if crossing_df.empty:
+                st.success(
+                    "No North/South circuit crossings were required for the selected balance."
+                )
+            else:
+                crossing_df = crossing_df.sort_values(
+                    by=[
+                        "Distance to Skid",
+                        "Strings",
+                        "LBD"
+                    ],
+                    ascending=[
+                        True,
+                        False,
+                        True
+                    ]
+                )
+
+                st.warning(
+                    f"{crossing_count} circuit(s) cross between the North and South sides "
+                    f"to improve or maintain inverter loading balance."
+                )
+
+                st.dataframe(
+                    crossing_df,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+        # ====================================================
+        # DOWNLOADS
+        # ====================================================
+        st.markdown("## Download Results")
+
+        download_col_1, download_col_2 = st.columns(2)
+
+        with download_col_1:
+            st.download_button(
+                label="Download Inverter Summary CSV",
+                data=summary_df.to_csv(index=False).encode("utf-8"),
+                file_name="tmeic_inverter_summary.csv",
+                mime="text/csv"
             )
 
-        with chart_col2:
-            st.markdown("### ILR per Inverter")
-            st.bar_chart(
-                df_summary.set_index("Inverter")["ILR"]
+        with download_col_2:
+            st.download_button(
+                label="Download LBD Assignment CSV",
+                data=assignment_df.to_csv(index=False).encode("utf-8"),
+                file_name="tmeic_lbd_assignment.csv",
+                mime="text/csv"
             )
 
     except Exception as error:
