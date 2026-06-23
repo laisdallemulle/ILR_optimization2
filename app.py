@@ -1028,7 +1028,7 @@ if run_button:
             st.download_button(
                 label="Download Inverter Summary CSV",
                 data=summary_df.to_csv(index=False).encode("utf-8"),
-                file_name="tmeic_inverter_summary.csv",
+                file_name="inverter_summary.csv",
                 mime="text/csv"
             )
 
@@ -1036,7 +1036,7 @@ if run_button:
             st.download_button(
                 label="Download LBD Assignment CSV",
                 data=assignment_df.to_csv(index=False).encode("utf-8"),
-                file_name="tmeic_lbd_assignment.csv",
+                file_name="lbd_assignment.csv",
                 mime="text/csv"
             )
 
