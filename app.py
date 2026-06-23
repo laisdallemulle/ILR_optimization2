@@ -4,12 +4,58 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+\# ============================================================
 
+\#  HEADER AREA
+
+\# ============================================================
+
+st.markdown("<div class='main-block'>", unsafe\_allow\_html=True)
+
+
+
+
+
+st.markdown(
+
+    f"""
+
+    <div class="logo-container">
+
+        <img src="data:image/png;base64,{logo\_b64}" class="logo-img">
+
+        <p style="color:#bbbbbb; font-size:13px; margin-top:6px; margin-bottom: inherit;">
+
+            Created by Laís Dalle Mulle – PV Engineer
+
+        </p>
+
+         <p style="color:#bbbbbb; font-size:13px; margin-top:1px;">
+
+            LaisDalleMulle@RRCcompanies.com
+
+        </p>
+
+        <h1 style="color:white; margin-bottom:0;">Inverter Loading Ratio Calculation</h1>
+
+        <p style="color:#bbbbbb; font-size:15px; margin-top:4px;">
+
+            Greedy allocation of DC strings to balance inverter ILR
+
+        </p>
+
+    </div>
+
+   """,
+
+   unsafe\_allow\_html=True
+
+)
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
 st.set_page_config(
-    page_title="TMEIC Skid Inverter Loading Distribution",
+    page_title="Inverter Loading Ratio Calculation",
     page_icon="🔌",
     layout="wide"
 )
