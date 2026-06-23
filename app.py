@@ -15,7 +15,6 @@ st.set_page_config(
     layout="wide"
 )
 st.caption("Created by Laís Dalle Mulle")
-st.caption("laisdallemulle@rrccompanies.com")
 
 # ============================================================
 # SESSION STATE
