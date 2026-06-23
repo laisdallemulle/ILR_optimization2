@@ -14,7 +14,8 @@ st.set_page_config(
     page_icon="🔌",
     layout="wide"
 )
-st.caption("Optional secondary text or a smaller, italicized note")
+st.caption("Created by Laís Dalle Mulle")
+st.caption("laisdallemulle@rrccompanies.com")
 
 # ============================================================
 # SESSION STATE
