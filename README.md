@@ -1,6 +1,6 @@
-# TMEIC Skid DC Circuit Distribution
+# Skid DC Circuit Distribution
 
-Streamlit application for distributing DC circuits across TMEIC skid inverters while balancing inverter loading and minimizing unnecessary North/South circuit crossings.
+Streamlit application for distributing DC circuits across skid inverters while balancing inverter loading and minimizing unnecessary North/South circuit crossings.
 
 ## Features
 
